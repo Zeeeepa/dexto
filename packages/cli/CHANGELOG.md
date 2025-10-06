@@ -1,5 +1,14 @@
 # dexto
 
+## 1.1.11
+
+### Patch Changes
+
+- 24e5093: Add customize agent capabilities
+- Updated dependencies [0760f8a]
+- Updated dependencies [24e5093]
+    - @dexto/core@1.1.11
+
 ## 1.1.10
 
 ### Patch Changes
