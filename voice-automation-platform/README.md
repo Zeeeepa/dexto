@@ -7,12 +7,14 @@
 ## 🌟 **What Is This?**
 
 A complete platform for building voice-driven automation using:
-- **OpenAI ChatKit** - Battle-tested chat UI and widget framework
+- **OpenAI ChatKit SDK** - Official ChatKit backend (openai-chatkit) for production-ready chat infrastructure
 - **Multi-Agent Orchestration** - Spawn hierarchical AI agents with dependencies
 - **MCP Integration** - Connect to Model Context Protocol tools (filesystem, browser, terminal, etc.)
 - **Quality Gates** - Validate outputs with JSON schema, regex, LLM judgment
 - **Real-Time Monitoring** - Visual task progression and concurrent workflow management
 - **Voice Interface** - Natural language commands → Complex workflows
+
+**NEW:** Now fully integrated with official `openai-chatkit` package instead of local copies!
 
 ---
 
@@ -65,18 +67,21 @@ Task Viewer + MCP Dashboard
 git clone <repo-url>
 cd voice-automation-platform
 
-# Install backend dependencies
+# Install backend dependencies (includes official openai-chatkit!)
 cd backend
 pip install -r requirements.txt
 
-# Install frontend dependencies
-cd ../frontend
-npm install
+# Install frontend dependencies (coming soon)
+# cd ../frontend
+# npm install
 
 # Set environment variables
 cp .env.example .env
 # Edit .env with your OPENAI_API_KEY
 ```
+
+**Note:** The backend now uses the official `openai-chatkit==1.0.0` package from OpenAI,
+providing production-ready chat infrastructure with agent support.
 
 ### **Run:**
 
@@ -326,4 +331,3 @@ Built with:
 ---
 
 **Made with ❤️ for the AI automation community**
-

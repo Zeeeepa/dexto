@@ -6,7 +6,10 @@ python-dotenv==1.0.0
 
 # OpenAI & Agents
 openai==1.10.0
-agents==0.1.0  # OpenAI Agents SDK
+openai-agents>=0.3.2
+
+# ChatKit SDK (Official OpenAI Backend SDK)
+openai-chatkit==1.0.0
 
 # Database & Storage
 sqlalchemy==2.0.25
@@ -21,10 +24,6 @@ pydantic-settings==2.1.0
 aiohttp==3.9.3
 httpx==0.26.0
 
-# ChatKit (local copy)
-# pydantic already included above
-# openai already included above
-
 # Utilities
 python-multipart==0.0.6
 python-jose[cryptography]==3.3.0
@@ -37,4 +36,3 @@ pytest-cov==4.1.0
 black==24.1.1
 ruff==0.1.14
 mypy==1.8.0
-
