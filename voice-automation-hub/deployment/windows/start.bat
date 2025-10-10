@@ -1,44 +1,46 @@
 @echo off
-REM Voice Automation Hub - Windows Start Script
-
-echo ======================================
-echo Voice Automation Hub - Starting
-echo ======================================
+echo.
+echo 🎤 Voice Automation Hub - Starting Services
+echo ============================================================
 echo.
 
-REM Get the project root (2 levels up from this script)
-set SCRIPT_DIR=%~dp0
-cd /d "%SCRIPT_DIR%\..\.."
+cd /d "%~dp0..\.."
 
-REM Check if .env exists
+echo 📋 Checking environment...
 if not exist ".env" (
-    echo ERROR: .env file not found!
-    echo Please run install.ps1 first and configure your API keys
+    echo ❌ .env file not found!
+    echo Please run install.ps1 first and configure .env
     pause
     exit /b 1
 )
 
-echo Starting backend server...
-start "Voice Automation Backend" cmd /k "cd backend && python -m uvicorn app.main:app --reload --port 8000"
+echo ✅ Environment configured
+echo.
+echo 🚀 Starting backend server...
+start "Voice Hub Backend" cmd /k "cd backend && python -m uvicorn app.main:app --reload --port 8000"
 
 timeout /t 3 /nobreak >nul
 
-echo Starting frontend development server...
-start "Voice Automation Frontend" cmd /k "cd frontend && npm run dev"
+echo.
+echo 🎨 Starting frontend server...
+start "Voice Hub Frontend" cmd /k "cd frontend && npm run dev"
 
-timeout /t 2 /nobreak >nul
+echo.
+echo ============================================================
+echo ✨ Services started!
+echo.
+echo   Backend:  http://localhost:8000
+echo   Frontend: http://localhost:5173
+echo   API Docs: http://localhost:8000/docs
+echo.
+echo Press any key to stop all services...
+pause >nul
 
 echo.
-echo ======================================
-echo Services Started!
-echo ======================================
-echo.
-echo Backend:  http://localhost:8000
-echo Frontend: http://localhost:5173
-echo.
-echo Press Ctrl+C in each window to stop the servers
-echo.
+echo 🛑 Stopping services...
+taskkill /FI "WINDOWTITLE eq Voice Hub Backend*" /T /F >nul 2>&1
+taskkill /FI "WINDOWTITLE eq Voice Hub Frontend*" /T /F >nul 2>&1
 
-REM Wait for user input
-pause
+echo ✅ Services stopped
+echo.
 
