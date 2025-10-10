@@ -17,6 +17,8 @@ from app.websocket import connection_manager, event_emitter
 from app.auth import auth_manager, PermissionChecker, User
 from app.database import database
 from app.cache import cache_manager
+from app.webhooks import webhook_manager, WebhookEvent
+from app.collaboration import agent_coordinator, CollaborationMode
 
 # Configure logging
 logging.basicConfig(
@@ -586,6 +588,202 @@ async def clear_cache(user: User = Depends(get_current_user)):
     await cache_manager.clear()
     
     return {"message": "Cache cleared successfully"}
+
+
+# Webhook endpoints
+@app.post("/api/webhooks")
+async def create_webhook(request: Request, user: User = Depends(get_current_user)):
+    """Create webhook."""
+    PermissionChecker.require_permission(user, "write")
+    
+    body = await request.json()
+    
+    webhook = webhook_manager.register_webhook(
+        id=body["id"],
+        url=body["url"],
+        events=body["events"],
+        secret=body.get("secret"),
+    )
+    
+    return {
+        "webhook": {
+            "id": webhook.id,
+            "url": webhook.url,
+            "events": [e.value for e in webhook.events],
+            "active": webhook.active,
+        },
+        "message": "Webhook created successfully",
+    }
+
+
+@app.get("/api/webhooks")
+async def list_webhooks(user: User = Depends(get_current_user)):
+    """List webhooks."""
+    PermissionChecker.require_permission(user, "read")
+    
+    webhooks = webhook_manager.list_webhooks()
+    
+    return {
+        "webhooks": [
+            {
+                "id": wh.id,
+                "url": wh.url,
+                "events": [e.value for e in wh.events],
+                "active": wh.active,
+                "created_at": wh.created_at,
+            }
+            for wh in webhooks
+        ],
+        "count": len(webhooks),
+    }
+
+
+@app.get("/api/webhooks/{webhook_id}")
+async def get_webhook(webhook_id: str, user: User = Depends(get_current_user)):
+    """Get webhook details."""
+    PermissionChecker.require_permission(user, "read")
+    
+    webhook = webhook_manager.get_webhook(webhook_id)
+    if not webhook:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Webhook not found"},
+        )
+    
+    # Get stats
+    stats = webhook_manager.get_webhook_stats(webhook_id)
+    
+    return {
+        "webhook": {
+            "id": webhook.id,
+            "url": webhook.url,
+            "events": [e.value for e in webhook.events],
+            "active": webhook.active,
+            "created_at": webhook.created_at,
+        },
+        "stats": stats,
+    }
+
+
+@app.delete("/api/webhooks/{webhook_id}")
+async def delete_webhook(webhook_id: str, user: User = Depends(get_current_user)):
+    """Delete webhook."""
+    PermissionChecker.require_permission(user, "delete")
+    
+    success = webhook_manager.unregister_webhook(webhook_id)
+    if not success:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Webhook not found"},
+        )
+    
+    return {"message": "Webhook deleted successfully"}
+
+
+@app.get("/api/webhooks/{webhook_id}/history")
+async def get_webhook_history(
+    webhook_id: str,
+    limit: int = 50,
+    user: User = Depends(get_current_user),
+):
+    """Get webhook delivery history."""
+    PermissionChecker.require_permission(user, "read")
+    
+    history = webhook_manager.get_delivery_history(webhook_id, limit)
+    
+    return {
+        "webhook_id": webhook_id,
+        "history": history,
+        "count": len(history),
+    }
+
+
+# Collaboration endpoints
+@app.post("/api/collaboration/sessions")
+async def create_collaboration_session(
+    request: Request,
+    user: User = Depends(get_current_user),
+):
+    """Create agent collaboration session."""
+    PermissionChecker.require_permission(user, "write")
+    
+    body = await request.json()
+    
+    session = await agent_coordinator.create_session(
+        mode=CollaborationMode(body["mode"]),
+        participants=body["participants"],
+    )
+    
+    return {
+        "session": {
+            "session_id": session.session_id,
+            "mode": session.mode.value,
+            "participants": session.participants,
+            "status": session.status,
+            "created_at": session.created_at,
+        },
+        "message": "Collaboration session created",
+    }
+
+
+@app.get("/api/collaboration/sessions")
+async def list_collaboration_sessions(user: User = Depends(get_current_user)):
+    """List collaboration sessions."""
+    PermissionChecker.require_permission(user, "read")
+    
+    sessions = agent_coordinator.list_sessions()
+    
+    return {
+        "sessions": [
+            {
+                "session_id": s.session_id,
+                "mode": s.mode.value,
+                "participants": s.participants,
+                "status": s.status,
+                "created_at": s.created_at,
+                "message_count": len(s.messages),
+            }
+            for s in sessions
+        ],
+        "count": len(sessions),
+    }
+
+
+@app.get("/api/collaboration/sessions/{session_id}")
+async def get_collaboration_session(
+    session_id: str,
+    user: User = Depends(get_current_user),
+):
+    """Get collaboration session details."""
+    PermissionChecker.require_permission(user, "read")
+    
+    session = agent_coordinator.get_session(session_id)
+    if not session:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Session not found"},
+        )
+    
+    return {
+        "session": {
+            "session_id": session.session_id,
+            "mode": session.mode.value,
+            "participants": session.participants,
+            "status": session.status,
+            "created_at": session.created_at,
+        },
+        "messages": [
+            {
+                "from": msg.from_agent,
+                "to": msg.to_agent,
+                "content": msg.content,
+                "type": msg.message_type,
+                "timestamp": msg.timestamp,
+            }
+            for msg in session.messages
+        ],
+        "decisions": session.decisions,
+    }
 
 
 if __name__ == "__main__":
