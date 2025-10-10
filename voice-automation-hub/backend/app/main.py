@@ -2,14 +2,21 @@
 
 import json
 import logging
+import secrets
+from datetime import datetime
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, Depends, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from app.constants import BACKEND_PORT, ALLOWED_ORIGINS
 from app.server import VoiceAutomationServer
+from app.websocket import connection_manager, event_emitter
+from app.auth import auth_manager, PermissionChecker, User
+from app.database import database
+from app.cache import cache_manager
 
 # Configure logging
 logging.basicConfig(
@@ -20,6 +27,41 @@ logger = logging.getLogger(__name__)
 
 # Initialize ChatKit server
 chatkit_server = VoiceAutomationServer()
+
+# Security
+security = HTTPBearer()
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> User:
+    """Get current authenticated user."""
+    token = credentials.credentials
+    payload = auth_manager.verify_token(token)
+    
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    user = auth_manager.get_user_by_id(payload["sub"])
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    
+    return user
+
+
+async def get_optional_user(
+    authorization: str = Header(None),
+) -> User | None:
+    """Get current user if authenticated, None otherwise."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    
+    token = authorization[7:]
+    payload = auth_manager.verify_token(token)
+    
+    if payload:
+        return auth_manager.get_user_by_id(payload["sub"])
+    return None
 
 
 @asynccontextmanager
@@ -345,6 +387,205 @@ async def get_error_stats():
     """Get error statistics."""
     from app.error_handling import error_handler
     return error_handler.get_error_statistics()
+
+
+# Authentication endpoints
+@app.post("/api/auth/register")
+async def register(request: Request):
+    """Register new user."""
+    body = await request.json()
+    
+    try:
+        user = auth_manager.create_user(
+            email=body["email"],
+            username=body["username"],
+            password=body["password"],
+            role=body.get("role", "user"),
+        )
+        
+        # Track registration
+        database.track_analytics(
+            "user_registered",
+            {"user_id": user.id, "role": user.role},
+        )
+        
+        return {
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "username": user.username,
+                "role": user.role,
+            },
+            "message": "User registered successfully",
+        }
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)},
+        )
+
+
+@app.post("/api/auth/login")
+async def login(request: Request):
+    """Login user."""
+    body = await request.json()
+    
+    user = auth_manager.authenticate(body["email"], body["password"])
+    if not user:
+        return JSONResponse(
+            status_code=401,
+            content={"error": "Invalid credentials"},
+        )
+    
+    token = auth_manager.create_access_token(user)
+    
+    # Track login
+    database.track_analytics(
+        "user_login",
+        {"user_id": user.id},
+    )
+    
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "username": user.username,
+            "role": user.role,
+        },
+    }
+
+
+@app.get("/api/auth/me")
+async def get_current_user_info(user: User = Depends(get_current_user)):
+    """Get current user information."""
+    return {
+        "id": user.id,
+        "email": user.email,
+        "username": user.username,
+        "role": user.role,
+        "created_at": user.created_at,
+        "last_login": user.last_login,
+    }
+
+
+@app.get("/api/users")
+async def list_users(user: User = Depends(get_current_user)):
+    """List all users (admin only)."""
+    PermissionChecker.require_permission(user, "admin")
+    
+    users = auth_manager.list_users()
+    return {
+        "users": [
+            {
+                "id": u.id,
+                "email": u.email,
+                "username": u.username,
+                "role": u.role,
+                "created_at": u.created_at,
+                "last_login": u.last_login,
+                "is_active": u.is_active,
+            }
+            for u in users
+        ],
+        "count": len(users),
+    }
+
+
+# WebSocket endpoint
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket endpoint for real-time updates."""
+    connection_id = secrets.token_hex(8)
+    
+    try:
+        # Accept connection
+        await connection_manager.connect(websocket, connection_id)
+        
+        # Keep connection alive and handle messages
+        while True:
+            data = await websocket.receive_text()
+            message = json.loads(data)
+            
+            # Handle different message types
+            if message.get("type") == "ping":
+                await connection_manager.send_personal_message(
+                    connection_id,
+                    {"type": "pong", "timestamp": datetime.now().isoformat()},
+                )
+            elif message.get("type") == "subscribe":
+                # Handle subscriptions
+                pass
+            
+    except WebSocketDisconnect:
+        connection_manager.disconnect(connection_id)
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+        connection_manager.disconnect(connection_id)
+
+
+# Database-backed workflow endpoints
+@app.get("/api/workflows/history")
+async def get_workflow_history(
+    status: str = None,
+    limit: int = 50,
+    offset: int = 0,
+    user: User = Depends(get_optional_user),
+):
+    """Get workflow history from database."""
+    workflows = database.list_workflows(status=status, limit=limit, offset=offset)
+    
+    return {
+        "workflows": workflows,
+        "count": len(workflows),
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@app.get("/api/analytics")
+async def get_analytics(
+    event_type: str = None,
+    start_date: str = None,
+    end_date: str = None,
+    limit: int = 100,
+    user: User = Depends(get_current_user),
+):
+    """Get analytics data (admin only)."""
+    PermissionChecker.require_permission(user, "admin")
+    
+    analytics = database.get_analytics(
+        event_type=event_type,
+        start_date=start_date,
+        end_date=end_date,
+        limit=limit,
+    )
+    
+    return {
+        "analytics": analytics,
+        "count": len(analytics),
+    }
+
+
+@app.get("/api/cache/stats")
+async def get_cache_stats(user: User = Depends(get_current_user)):
+    """Get cache statistics."""
+    # This would require cache backend to expose stats
+    return {
+        "backend": type(cache_manager.backend).__name__,
+        "available": True,
+    }
+
+
+@app.post("/api/cache/clear")
+async def clear_cache(user: User = Depends(get_current_user)):
+    """Clear cache (admin only)."""
+    PermissionChecker.require_permission(user, "admin")
+    
+    await cache_manager.clear()
+    
+    return {"message": "Cache cleared successfully"}
 
 
 if __name__ == "__main__":
