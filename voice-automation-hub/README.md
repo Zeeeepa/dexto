@@ -50,6 +50,56 @@ Data analysis and insights:
 - Insight generation
 - Data visualization
 
+## 🎯 Latest Features
+
+### Testing Infrastructure ✅
+- Complete pytest test suite with 100% coverage setup
+- Tests for all agents, memory store, and API endpoints
+- Mock OpenAI client for testing
+- Async test support
+
+### Monitoring & Observability 📊
+- Real-time metrics (counters, gauges, timers, histograms)
+- Request logging and tracking
+- Performance metrics with percentiles (p50, p95, p99)
+- Health check system with error rate monitoring
+- `/api/metrics` endpoint for metrics
+- `/api/health/detailed` for detailed health status
+
+### Error Handling & Recovery 🛡️
+- Custom error hierarchy with severity levels
+- Automatic error tracking and statistics
+- Retry handler with exponential backoff
+- Circuit breaker pattern for fault tolerance
+- `/api/errors/statistics` endpoint
+
+### Security Features 🔒
+- Rate limiting to prevent API abuse
+- API key management system
+- Input validation and sanitization
+- Content Security Policy headers
+- Audit logging for security events
+- `/api/security/audit-log` endpoint
+
+### Workflow Templates Library 📚
+- 6 pre-built workflow templates:
+  - Comprehensive Code Review
+  - API Development Workflow
+  - ETL Pipeline Generator
+  - Data Insights Report
+  - Market Research Analysis
+  - Complete Test Suite Generator
+- Template search and instantiation
+- `/api/templates` endpoint to browse templates
+- `/api/workflows/from-template` to create from templates
+
+### Git Operations 🔧
+- Repository cloning and management
+- Commit history retrieval
+- Branch creation and management
+- Pull request creation
+- Diff generation
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -362,13 +412,51 @@ GET /chatkit
 
 Streaming Server-Sent Events for real-time workflow updates.
 
+## 🌐 Complete API Reference
+
+### Core Endpoints
+- `GET /` - Service information
+- `GET /health` - Basic health check
+- `GET /health/detailed` - Detailed health status with error rates
+
+### Workflow Management
+- `GET /api/workflows` - List all active workflows
+- `POST /api/workflows` - Create new workflow
+- `GET /api/workflows/{id}` - Get workflow details
+- `DELETE /api/workflows/{id}` - Delete workflow
+- `POST /api/workflows/from-template` - Create workflow from template
+
+### Workflow Templates
+- `GET /api/templates` - List all workflow templates
+- `GET /api/templates?category={category}` - Filter templates by category
+- `GET /api/templates/{id}` - Get template details
+
+### Monitoring & Observability
+- `GET /api/metrics` - System metrics (counters, gauges, timers)
+- `GET /api/errors/statistics` - Error statistics and recent errors
+
+### Security & Auditing
+- `GET /api/security/audit-log` - Security audit log entries
+- `GET /api/security/audit-log?limit={n}` - Get last N audit entries
+
 ## 🔐 Security
 
-- API keys stored in environment variables
-- CORS configured for development
-- Input validation on all endpoints
-- Rate limiting (configurable)
-- Secure token handling
+### Built-in Security Features
+- **Rate Limiting**: Configurable rate limits to prevent API abuse
+- **API Key Management**: Secure API key generation and validation
+- **Input Validation**: Comprehensive input sanitization
+- **Content Security Policy**: Strict CSP headers on all responses
+- **Security Headers**: X-Frame-Options, X-Content-Type-Options, etc.
+- **Audit Logging**: All security events are logged
+- **CORS**: Configured for development (customize for production)
+- **Secure Token Handling**: Environment-based configuration
+
+### Security Best Practices
+- Never commit `.env` file with real API keys
+- Use API key rotation in production
+- Configure rate limits based on your needs
+- Review audit logs regularly
+- Keep dependencies updated
 
 ## 🤝 Contributing
 
@@ -402,4 +490,3 @@ Built with:
 ---
 
 **Made with ❤️ by the dexto team**
-
