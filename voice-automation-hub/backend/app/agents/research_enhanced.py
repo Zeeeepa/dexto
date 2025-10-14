@@ -115,10 +115,17 @@ class EnhancedResearchAgent:
         # Perform search
         search_results = await self.search_provider.search(topic, num_results)
 
-        # Synthesize findings
-        findings = self._extract_findings(search_results)
-        summary = self._generate_summary(topic, findings)
-        keywords = self._extract_keywords(topic, search_results)
+        # Synthesize findings using AI
+        try:
+            synthesis = await self._ai_synthesize(topic, search_results)
+            findings = synthesis.get("key_findings", [])
+            summary = synthesis.get("summary", self._generate_summary(topic, findings))
+            keywords = self._extract_keywords(topic, search_results)
+        except Exception as e:
+            logger.warning(f"AI synthesis failed: {e}, using fallback")
+            findings = self._extract_findings(search_results)
+            summary = self._generate_summary(topic, findings)
+            keywords = self._extract_keywords(topic, search_results)
 
         duration = (datetime.now() - start_time).total_seconds()
 
@@ -148,6 +155,27 @@ class EnhancedResearchAgent:
     async def web_search(self, query: str, num_results: int = 5) -> List[Dict[str, Any]]:
         """Perform web search."""
         return await self.search_provider.search(query, num_results)
+
+    async def _ai_synthesize(
+        self, topic: str, sources: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Use AI to synthesize research findings.
+
+        Args:
+            topic: Research topic
+            sources: List of search results
+
+        Returns:
+            Synthesized findings with summary and key points
+        """
+        from app.api_client import get_client
+
+        client = get_client()
+        synthesis = await client.research_synthesis(topic, sources)
+
+        logger.info(f"AI synthesis completed for: {topic}")
+        return synthesis
 
     async def multi_query_research(self, queries: List[str]) -> Dict[str, Any]:
         """Research multiple queries in parallel."""
@@ -222,4 +250,3 @@ class EnhancedResearchAgent:
 
 # Global instance
 enhanced_research_agent = EnhancedResearchAgent()
-

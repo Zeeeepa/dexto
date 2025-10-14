@@ -197,16 +197,42 @@ class CreatorAgent:
             ],
         }
 
-    def parse_voice_command(self, command: str) -> Dict[str, Any]:
+    def parse_voice_command(
+        self, command: str, use_ai: bool = True
+    ) -> Dict[str, Any]:
         """
         Parse voice command to determine intent and parameters.
 
         Args:
             command: Voice command text
+            use_ai: Whether to use AI parsing (default: True)
 
         Returns:
             Parsed command info
         """
+        if use_ai:
+            # Try AI parsing first
+            try:
+                import asyncio
+                from app.api_client import get_client
+
+                client = get_client()
+                loop = asyncio.get_event_loop()
+                parsed = loop.run_until_complete(client.parse_command(command))
+
+                # Map AI response to our format
+                return {
+                    "intent": parsed.get("intent", "unknown"),
+                    "action": parsed.get("entities", {}).get("action", ""),
+                    "target": parsed.get("entities", {}).get("target", command),
+                    "original": command,
+                    "confidence": parsed.get("confidence", 0.5),
+                    "ai_reasoning": parsed.get("reasoning", ""),
+                }
+            except Exception as e:
+                logger.warning(f"AI parsing failed: {e}, using pattern matching")
+
+        # Fallback to pattern matching
         command_lower = command.lower()
 
         # Match against patterns
@@ -603,4 +629,3 @@ class CreatorAgent:
 
 # Global creator agent instance
 creator_agent = CreatorAgent()
-
