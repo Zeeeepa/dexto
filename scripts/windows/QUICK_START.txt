@@ -1,0 +1,40 @@
+================================================================================
+  DEXTO - QUICK START GUIDE FOR WINDOWS
+================================================================================
+
+Get Dexto running in just a few steps!
+
+PREREQUISITES (5 MINUTES)
+--------------------------
+1. Install Node.js from: https://nodejs.org/
+   Download LTS version and run installer
+
+INSTALLATION (2 MINUTES)
+-------------------------
+2. Open Command Prompt
+3. Navigate to dexto directory:
+   cd C:\path\to\dexto
+4. Run installer:
+   scripts\windows\install.bat
+
+START DEXTO (30 SECONDS)
+-------------------------
+5. Start application:
+   scripts\windows\start.bat
+6. Open browser to: http://localhost:3000
+
+COMMON COMMANDS
+---------------
+Check status:   scripts\windows\status.bat
+Stop Dexto:     scripts\windows\stop.bat
+Configure:      scripts\windows\configure.bat
+
+TROUBLESHOOTING
+---------------
+- "dexto not found": Close terminal and open new one
+- "Port 3000 in use": scripts\windows\start.bat --web-port 8080
+- Installation fails: Run as Administrator
+
+For detailed instructions: INSTALL_INSTRUCTIONS.txt
+
+================================================================================
