@@ -65,6 +65,8 @@ cd dexto && pnpm install && pnpm install-cli
 
 📚 **Deployment Guides:**
 - **[Quick Start Guide](docs/deployment/QUICK_START.md)** - Get started in 5 minutes
+- **[CLI Reference](docs/deployment/CLI_REFERENCE.md)** - Complete command-line reference
+- **[Mode Comparison](docs/deployment/MODE_COMPARISON.md)** - Choose the right mode for your needs
 - **[Windows Deployment](docs/deployment/WINDOWS_DEPLOYMENT.md)** - Complete Windows setup guide
 - **[Full Deployment Guide](DEPLOYMENT.md)** - Production deployments, Docker, Kubernetes, cloud platforms
 
