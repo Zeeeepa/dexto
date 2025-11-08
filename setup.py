@@ -187,22 +187,34 @@ class DextoSetup:
                 self.logger.warning("You may need to restart your terminal")
             print()
             
-            # Step 7: Validate API keys
-            self.logger.step(7, 8, "Validating API keys...")
-            self.validate_api_keys()
+            # Step 7: Interactive Configuration
+            self.logger.step(7, 8, "Configuration wizard...")
+            if not self.args.no_setup:
+                if not self.args.yes:
+                    # Run interactive configuration wizard
+                    config = self.interactive_configuration()
+                    if config is None:
+                        self.logger.error("Configuration cancelled by user")
+                        return 1
+                else:
+                    # Non-interactive mode - validate existing keys
+                    if not self.validate_api_keys():
+                        self.logger.warning("No API keys found in non-interactive mode")
+                        self.logger.info("Set environment variables or run without --yes flag")
+            else:
+                self.logger.info("Configuration skipped (use --no-setup)")
+                # Still validate existing keys
+                self.validate_api_keys()
             print()
             
-            # Step 8: Run setup wizard
-            if not self.args.no_setup:
-                self.logger.step(8, 8, "Initial configuration...")
-                if not self.args.yes:
-                    response = input("Run setup wizard now? (Y/n): ").strip().lower()
-                    if response != 'n':
-                        self.run_setup()
-                else:
+            # Step 8: Final setup
+            self.logger.step(8, 8, "Finalizing setup...")
+            if not self.args.no_setup and not self.args.yes:
+                response = input("Run additional setup wizard? (y/N): ").strip().lower()
+                if response == 'y':
                     self.run_setup()
-            else:
-                self.logger.info("Setup skipped")
+            self.logger.success("Setup complete!")
+            print()
             
             # Clean up backup on success
             if self.args.advanced and self.backup_dir.exists():
@@ -389,6 +401,246 @@ class DextoSetup:
         
         return None
     
+    def interactive_configuration(self):
+        """Interactive configuration wizard for all variables"""
+        print()
+        print("=" * 60)
+        print("  Dexto Configuration Wizard")
+        print("=" * 60)
+        print()
+        print("This wizard will help you configure Dexto.")
+        print("Press Enter to skip optional fields.")
+        print()
+        
+        config = {}
+        
+        # Required API Keys Section
+        print(Colors.color("REQUIRED: API Keys (at least one needed)", Colors.CYAN))
+        print("-" * 60)
+        print()
+        
+        required_keys = {
+            'OPENAI_API_KEY': {
+                'name': 'OpenAI API Key',
+                'description': 'For GPT models (gpt-4, gpt-4o, etc.)',
+                'placeholder': 'sk-...',
+                'required': False  # At least one of the three
+            },
+            'ANTHROPIC_API_KEY': {
+                'name': 'Anthropic API Key',
+                'description': 'For Claude models (claude-sonnet, claude-opus)',
+                'placeholder': 'sk-ant-...',
+                'required': False
+            },
+            'GOOGLE_GENERATIVE_AI_API_KEY': {
+                'name': 'Google Generative AI API Key',
+                'description': 'For Gemini models (gemini-pro, gemini-flash)',
+                'placeholder': 'AIza...',
+                'required': False
+            }
+        }
+        
+        api_keys_configured = False
+        for env_var, info in required_keys.items():
+            current = os.environ.get(env_var, '')
+            if current:
+                print(f"✓ {info['name']}: Already configured")
+                config[env_var] = current
+                api_keys_configured = True
+            else:
+                print(f"\n{info['name']}")
+                print(f"  Purpose: {info['description']}")
+                print(f"  Format: {info['placeholder']}")
+                value = input(f"  Enter key (or press Enter to skip): ").strip()
+                if value:
+                    config[env_var] = value
+                    api_keys_configured = True
+                    print(f"  ✓ {info['name']} saved")
+        
+        if not api_keys_configured:
+            print()
+            print(Colors.color("WARNING: No API keys configured!", Colors.YELLOW))
+            print("You need at least one API key to use Dexto.")
+            response = input("Continue anyway? (y/N): ").strip().lower()
+            if response != 'y':
+                return None
+        
+        # Optional Configuration Section
+        print()
+        print(Colors.color("OPTIONAL: Additional Configuration", Colors.CYAN))
+        print("-" * 60)
+        print()
+        
+        optional_configs = {
+            'DEFAULT_LLM_PROVIDER': {
+                'name': 'Default LLM Provider',
+                'description': 'Which provider to use by default',
+                'options': ['openai', 'anthropic', 'google'],
+                'default': 'openai'
+            },
+            'DEFAULT_LLM_MODEL': {
+                'name': 'Default LLM Model',
+                'description': 'Which model to use by default',
+                'examples': 'gpt-4o, claude-sonnet-4-5, gemini-2.0-flash',
+                'default': 'gpt-4o'
+            },
+            'WEB_PORT': {
+                'name': 'Web UI Port',
+                'description': 'Port for the web interface',
+                'default': '3000'
+            },
+            'API_PORT': {
+                'name': 'API Server Port',
+                'description': 'Port for the API server',
+                'default': '3001'
+            },
+            'DISCORD_BOT_TOKEN': {
+                'name': 'Discord Bot Token (OPTIONAL)',
+                'description': 'For Discord integration',
+                'placeholder': 'MTIzNDU2Nzg5...',
+                'default': ''
+            },
+            'TELEGRAM_BOT_TOKEN': {
+                'name': 'Telegram Bot Token (OPTIONAL)',
+                'description': 'For Telegram integration',
+                'placeholder': '123456789:ABC...',
+                'default': ''
+            },
+            'LOG_LEVEL': {
+                'name': 'Log Level (OPTIONAL)',
+                'description': 'Logging verbosity',
+                'options': ['debug', 'info', 'warn', 'error'],
+                'default': 'info'
+            },
+            'TELEMETRY_ENABLED': {
+                'name': 'Telemetry (OPTIONAL)',
+                'description': 'Help improve Dexto by sharing anonymous usage data',
+                'options': ['true', 'false'],
+                'default': 'true'
+            }
+        }
+        
+        for env_var, info in optional_configs.items():
+            current = os.environ.get(env_var, '')
+            print(f"\n{info['name']} [OPTIONAL]")
+            print(f"  Purpose: {info['description']}")
+            
+            if 'options' in info:
+                print(f"  Options: {', '.join(info['options'])}")
+            if 'examples' in info:
+                print(f"  Examples: {info['examples']}")
+            if 'placeholder' in info:
+                print(f"  Format: {info['placeholder']}")
+            
+            default_val = current or info.get('default', '')
+            if default_val:
+                prompt = f"  Enter value [default: {default_val}]: "
+            else:
+                prompt = f"  Enter value (or press Enter to skip): "
+            
+            value = input(prompt).strip()
+            
+            if value:
+                config[env_var] = value
+                print(f"  ✓ Set to: {value}")
+            elif default_val:
+                config[env_var] = default_val
+                print(f"  ✓ Using default: {default_val}")
+        
+        # Save configuration
+        print()
+        print("=" * 60)
+        print("  Saving Configuration")
+        print("=" * 60)
+        print()
+        
+        self._save_configuration(config)
+        
+        return config
+    
+    def _save_configuration(self, config):
+        """Save configuration to environment and config files"""
+        # Create config directory
+        config_dir = Path.home() / '.dexto' / 'config'
+        config_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save to JSON file
+        config_file = config_dir / 'setup_config.json'
+        with open(config_file, 'w') as f:
+            json.dump(config, f, indent=2)
+        self.logger.success(f"Configuration saved to {config_file}")
+        
+        # Save to environment file
+        env_file = config_dir / '.env'
+        with open(env_file, 'w') as f:
+            f.write("# Dexto Configuration\n")
+            f.write(f"# Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+            for key, value in config.items():
+                f.write(f"{key}={value}\n")
+        self.logger.success(f"Environment file saved to {env_file}")
+        
+        # Set environment variables for current session
+        for key, value in config.items():
+            os.environ[key] = value
+        
+        # Platform-specific persistent configuration
+        if IS_WINDOWS:
+            self._save_windows_env(config)
+        else:
+            self._save_unix_env(config)
+    
+    def _save_windows_env(self, config):
+        """Save environment variables on Windows"""
+        self.logger.info("Setting Windows environment variables...")
+        for key, value in config.items():
+            try:
+                subprocess.run(
+                    ['setx', key, value],
+                    capture_output=True,
+                    check=True
+                )
+            except subprocess.CalledProcessError:
+                self.logger.warning(f"Could not set {key} in Windows registry")
+        
+        self.logger.success("Windows environment variables configured")
+        self.logger.info("Note: Restart your terminal for changes to take effect")
+    
+    def _save_unix_env(self, config):
+        """Save environment variables on Unix systems"""
+        # Detect shell config file
+        shell_config = None
+        home = Path.home()
+        
+        for config_file in ['.bashrc', '.zshrc', '.profile']:
+            path = home / config_file
+            if path.exists():
+                shell_config = path
+                break
+        
+        if not shell_config:
+            # Default to .bashrc
+            shell_config = home / '.bashrc'
+        
+        self.logger.info(f"Adding environment variables to {shell_config}")
+        
+        # Check if already configured
+        try:
+            with open(shell_config, 'r') as f:
+                content = f.read()
+            
+            if '# Dexto Configuration' not in content:
+                with open(shell_config, 'a') as f:
+                    f.write("\n\n# Dexto Configuration\n")
+                    for key, value in config.items():
+                        f.write(f'export {key}="{value}"\n')
+                
+                self.logger.success(f"Configuration added to {shell_config}")
+                self.logger.info("Run: source ~/.bashrc (or restart terminal)")
+            else:
+                self.logger.info("Configuration already exists in shell config")
+        except Exception as e:
+            self.logger.warning(f"Could not update shell config: {e}")
+    
     def validate_api_keys(self):
         """Check for configured API keys"""
         keys = {
@@ -407,12 +659,9 @@ class DextoSetup:
         if not found_any:
             self.logger.warning("No API keys configured")
             self.logger.warning("You'll need to configure API keys to use Dexto")
-            print()
-            print("Configure API keys:")
-            print("  1. Run: dexto setup")
-            print("  2. Or set environment variables:")
-            print("     export OPENAI_API_KEY='sk-...'")
-            print("     export ANTHROPIC_API_KEY='sk-ant-...'")
+            return False
+        
+        return True
     
     def run_setup(self):
         """Run interactive setup wizard"""
@@ -506,4 +755,3 @@ Examples:
 
 if __name__ == '__main__':
     main()
-
